@@ -1,4 +1,7 @@
 const FamilySearch = require("fs-js-lite");
+const XLSX = require("xlsx");
+const path = require("path");
+const os = require("os");
 
 async function getCurrentPersonId(fs) {
   return new Promise((resolve, reject) => {
@@ -115,21 +118,15 @@ function getPersonUrl(personId) {
   return `https://www.familysearch.org/tree/person/details/${personId}`;
 }
 
-function displayPersonInfo(person, locations) {
-  const display = person.display;
-  const relationship = getRelationship(display.ascendancyNumber);
-  const personUrl = getPersonUrl(person.id);
-  console.log(`
-    Name: ${display.name}
-    Relationship: ${relationship}
-    Gender: ${display.gender}
-    Lifespan: ${display.lifespan}
-    Ascendancy Number: ${display.ascendancyNumber}
-    ID: ${person.id}
-    Locations: ${formatLocations(locations)}
-    Memory Count: N/A (Beta limitation)
-    FamilySearch URL: ${personUrl}
-  `);
+function formatLocationsForExcel(locations) {
+  return locations
+    .map(
+      (loc) =>
+        `${loc.type.replace("http://gedcomx.org/", "")}: ${loc.place} (${
+          loc.date
+        })`
+    )
+    .join("\n");
 }
 
 async function main() {
@@ -144,14 +141,46 @@ async function main() {
     const personId = await getCurrentPersonId(fs);
     const tree = await getAncestryTree(fs, personId);
 
-    console.log("Ancestry Tree:");
+    console.log("Fetching ancestry data...");
+
+    const excelData = [];
+
     for (const person of tree.persons) {
       const details = await getPersonDetails(fs, person.id);
       const locations = extractLocations(details.persons[0]);
-      displayPersonInfo(person, locations);
+
+      excelData.push({
+        Name: person.display.name,
+        Relationship: getRelationship(person.display.ascendancyNumber),
+        Gender: person.display.gender,
+        Lifespan: person.display.lifespan,
+        "Ascendancy Number": person.display.ascendancyNumber,
+        ID: person.id,
+        Locations: formatLocationsForExcel(locations),
+        "Memory Count": "N/A (Beta limitation)",
+        "FamilySearch URL": getPersonUrl(person.id),
+      });
+
+      // Optional: log progress
+      console.log(`Processed: ${person.display.name}`);
     }
 
+    // Create a new workbook and add the data
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(excelData);
+
+    // Add the worksheet to the workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Ancestry Tree");
+
+    // Get the path to the Downloads folder
+    const downloadsFolder = path.join(os.homedir(), "Downloads");
+    const filePath = path.join(downloadsFolder, "ancestry_tree.xlsx");
+
+    // Write the workbook to a file in the Downloads folder
+    XLSX.writeFile(wb, filePath);
+
     console.log(`Total persons in tree: ${tree.persons.length}`);
+    console.log(`Excel file saved to: ${filePath}`);
   } catch (error) {
     console.error("Detailed error:", error.message);
   }
