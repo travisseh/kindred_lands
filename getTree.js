@@ -67,15 +67,32 @@ async function getPersonDetails(fs, personId) {
 }
 
 function extractLocations(person) {
-  const locations = new Set();
+  const locations = [];
   if (person.facts) {
     person.facts.forEach((fact) => {
       if (fact.place && fact.place.original) {
-        locations.add(fact.place.original);
+        locations.push({
+          type: fact.type,
+          date: fact.date ? fact.date.original : "Unknown",
+          place: fact.place.original,
+        });
       }
     });
   }
-  return Array.from(locations);
+  return locations;
+}
+
+function formatLocations(locations) {
+  if (locations.length === 0) return "No locations found";
+
+  return locations
+    .map(
+      (loc) =>
+        `${loc.type.replace("http://gedcomx.org/", "")}: ${loc.place} (${
+          loc.date
+        })`
+    )
+    .join(", ");
 }
 
 function getRelationship(ascendancyNumber) {
@@ -109,7 +126,7 @@ function displayPersonInfo(person, locations) {
     Lifespan: ${display.lifespan}
     Ascendancy Number: ${display.ascendancyNumber}
     ID: ${person.id}
-    Locations: ${locations.join(", ") || "No locations found"}
+    Locations: ${formatLocations(locations)}
     Memory Count: N/A (Beta limitation)
     FamilySearch URL: ${personUrl}
   `);
