@@ -70,32 +70,95 @@ async function getPersonDetails(fs, personId) {
 }
 
 function extractLocations(person) {
+  const usStates = [
+    "Alabama",
+    "Alaska",
+    "Arizona",
+    "Arkansas",
+    "California",
+    "Colorado",
+    "Connecticut",
+    "Delaware",
+    "Florida",
+    "Georgia",
+    "Hawaii",
+    "Idaho",
+    "Illinois",
+    "Indiana",
+    "Iowa",
+    "Kansas",
+    "Kentucky",
+    "Louisiana",
+    "Maine",
+    "Maryland",
+    "Massachusetts",
+    "Michigan",
+    "Minnesota",
+    "Mississippi",
+    "Missouri",
+    "Montana",
+    "Nebraska",
+    "Nevada",
+    "New Hampshire",
+    "New Jersey",
+    "New Mexico",
+    "New York",
+    "North Carolina",
+    "North Dakota",
+    "Ohio",
+    "Oklahoma",
+    "Oregon",
+    "Pennsylvania",
+    "Rhode Island",
+    "South Carolina",
+    "South Dakota",
+    "Tennessee",
+    "Texas",
+    "Utah",
+    "Vermont",
+    "Virginia",
+    "Washington",
+    "West Virginia",
+    "Wisconsin",
+    "Wyoming",
+  ];
+
+  function getCountry(placeParts) {
+    if (placeParts.length > 1) {
+      const lastPart = placeParts[placeParts.length - 1];
+      const secondLastPart = placeParts[placeParts.length - 2];
+
+      if (lastPart === "United States" || lastPart === "USA") {
+        return "United States";
+      }
+      if (usStates.includes(lastPart) || usStates.includes(secondLastPart)) {
+        return "United States";
+      }
+      // Check for cases like "Utah, United States"
+      if (lastPart.includes("United States")) {
+        return "United States";
+      }
+      return lastPart;
+    }
+    return "Unknown";
+  }
+
   const locations = [];
   if (person.facts) {
     person.facts.forEach((fact) => {
       if (fact.place && fact.place.original) {
+        const placeParts = fact.place.original.split(", ");
+        const country = getCountry(placeParts);
         locations.push({
-          type: fact.type,
-          date: fact.date ? fact.date.original : "Unknown",
+          type: fact.type.replace("http://gedcomx.org/", ""),
           place: fact.place.original,
+          country: country,
+          date: fact.date ? fact.date.original : "Unknown",
         });
       }
     });
   }
   return locations;
-}
-
-function formatLocations(locations) {
-  if (locations.length === 0) return "No locations found";
-
-  return locations
-    .map(
-      (loc) =>
-        `${loc.type.replace("http://gedcomx.org/", "")}: ${loc.place} (${
-          loc.date
-        })`
-    )
-    .join(", ");
 }
 
 function getRelationship(ascendancyNumber) {
@@ -118,17 +181,6 @@ function getPersonUrl(personId) {
   return `https://www.familysearch.org/tree/person/details/${personId}`;
 }
 
-function formatLocationsForExcel(locations) {
-  return locations
-    .map(
-      (loc) =>
-        `${loc.type.replace("http://gedcomx.org/", "")}: ${loc.place} (${
-          loc.date
-        })`
-    )
-    .join("\n");
-}
-
 async function main() {
   const accessToken = "b0-Ru8Uwe5eHmD.D2q5oOyiFIn";
 
@@ -149,17 +201,40 @@ async function main() {
       const details = await getPersonDetails(fs, person.id);
       const locations = extractLocations(details.persons[0]);
 
-      excelData.push({
+      const personData = {
         Name: person.display.name,
         Relationship: getRelationship(person.display.ascendancyNumber),
         Gender: person.display.gender,
         Lifespan: person.display.lifespan,
-        "Ascendancy Number": person.display.ascendancyNumber,
         ID: person.id,
-        Locations: formatLocationsForExcel(locations),
         "Memory Count": "N/A (Beta limitation)",
         "FamilySearch URL": getPersonUrl(person.id),
-      });
+      };
+
+      if (locations.length === 0) {
+        personData["Location Type"] = "No locations found";
+        personData["Location"] = "";
+        personData["Country"] = "";
+        personData["Date"] = "";
+        excelData.push(personData);
+      } else {
+        locations.forEach((loc, index) => {
+          if (index === 0) {
+            personData["Location Type"] = loc.type;
+            personData["Location"] = loc.place;
+            personData["Country"] = loc.country;
+            personData["Date"] = loc.date;
+            excelData.push(personData);
+          } else {
+            excelData.push({
+              "Location Type": loc.type,
+              Location: loc.place,
+              Country: loc.country,
+              Date: loc.date,
+            });
+          }
+        });
+      }
 
       // Optional: log progress
       console.log(`Processed: ${person.display.name}`);
