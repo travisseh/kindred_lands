@@ -69,6 +69,37 @@ async function getPersonDetails(fs, personId) {
   });
 }
 
+async function getMemoryCount(fs, personId) {
+  return new Promise((resolve) => {
+    fs.get(`/platform/tree/persons/${personId}/memories`, (error, response) => {
+      if (error) {
+        console.error("Error fetching memory count:", error);
+        resolve({ count: "N/A", links: [] });
+      } else if (response.statusCode === 204) {
+        console.log(`No memories found for person ${personId}`);
+        resolve({ count: 0, links: [] });
+      } else if (response.statusCode >= 400) {
+        console.error(
+          `HTTP error! status: ${response.statusCode}, body: ${response.body}`
+        );
+        resolve({ count: "N/A", links: [] });
+      } else {
+        let memoryCount = 0;
+        let memoryLinks = [];
+        if (response.data && Array.isArray(response.data.sourceDescriptions)) {
+          memoryCount = response.data.sourceDescriptions.length;
+          memoryLinks = response.data.sourceDescriptions.map(
+            (memory) =>
+              `https://www.familysearch.org/photos/artifacts/${memory.id}`
+          );
+        }
+        console.log(`Memory count for person ${personId}: ${memoryCount}`);
+        resolve({ count: memoryCount, links: memoryLinks });
+      }
+    });
+  });
+}
+
 function extractLocations(person) {
   const usStates = [
     "Alabama",
@@ -182,8 +213,7 @@ function getPersonUrl(personId) {
 }
 
 async function main() {
-  const accessToken = "b0-Ru8Uwe5eHmD.D2q5oOyiFIn";
-
+  const accessToken = "b0-yYFphYPr1v2.3mn2NUucMrR";
   const fs = new FamilySearch({
     accessToken: accessToken,
     environment: "beta",
@@ -198,46 +228,53 @@ async function main() {
     const excelData = [];
 
     for (const person of tree.persons) {
-      const details = await getPersonDetails(fs, person.id);
-      const locations = extractLocations(details.persons[0]);
+      try {
+        const details = await getPersonDetails(fs, person.id);
+        const locations = extractLocations(details.persons[0]);
+        const { count, links } = await getMemoryCount(fs, person.id);
 
-      const personData = {
-        Name: person.display.name,
-        Relationship: getRelationship(person.display.ascendancyNumber),
-        Gender: person.display.gender,
-        Lifespan: person.display.lifespan,
-        ID: person.id,
-        "Memory Count": "N/A (Beta limitation)",
-        "FamilySearch URL": getPersonUrl(person.id),
-      };
+        const personData = {
+          Name: person.display.name,
+          Relationship: getRelationship(person.display.ascendancyNumber),
+          Gender: person.display.gender,
+          Lifespan: person.display.lifespan,
+          ID: person.id,
+          "Memory Count": count,
+          "Memory Links": links.join(", "),
+          "FamilySearch URL": getPersonUrl(person.id),
+        };
 
-      if (locations.length === 0) {
-        personData["Location Type"] = "No locations found";
-        personData["Location"] = "";
-        personData["Country"] = "";
-        personData["Date"] = "";
-        excelData.push(personData);
-      } else {
-        locations.forEach((loc, index) => {
-          if (index === 0) {
-            personData["Location Type"] = loc.type;
-            personData["Location"] = loc.place;
-            personData["Country"] = loc.country;
-            personData["Date"] = loc.date;
-            excelData.push(personData);
-          } else {
-            excelData.push({
-              "Location Type": loc.type,
-              Location: loc.place,
-              Country: loc.country,
-              Date: loc.date,
-            });
-          }
-        });
+        if (locations.length === 0) {
+          personData["Location Type"] = "No locations found";
+          personData["Location"] = "";
+          personData["Country"] = "";
+          personData["Date"] = "";
+          excelData.push(personData);
+        } else {
+          locations.forEach((loc, index) => {
+            if (index === 0) {
+              personData["Location Type"] = loc.type;
+              personData["Location"] = loc.place;
+              personData["Country"] = loc.country;
+              personData["Date"] = loc.date;
+              excelData.push(personData);
+            } else {
+              excelData.push({
+                "Location Type": loc.type,
+                Location: loc.place,
+                Country: loc.country,
+                Date: loc.date,
+              });
+            }
+          });
+        }
+
+        console.log(
+          `Processed: ${person.display.name} (ID: ${person.id}, Memories: ${count})`
+        );
+      } catch (error) {
+        console.error(`Error processing person ${person.id}:`, error.message);
       }
-
-      // Optional: log progress
-      console.log(`Processed: ${person.display.name}`);
     }
 
     // Create a new workbook and add the data
