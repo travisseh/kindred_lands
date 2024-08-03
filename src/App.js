@@ -35,91 +35,54 @@ async function getAccessToken(code) {
 }
 
 function App() {
-  const [authCode, setAuthCode] = useState("");
-  const [treeData, setTreeData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
     if (code) {
-      setAuthCode(code);
+      handleAuthorization(code);
     }
   }, []);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleAuthorization = async (code) => {
     setLoading(true);
     setError(null);
     try {
-      console.log("Getting access token...");
-      const accessToken = await getAccessToken(authCode);
-      console.log("Access token received:", accessToken);
-
-      console.log("Fetching tree data...");
+      const accessToken = await getAccessToken(code);
       const data = await fetchTreeData(accessToken);
-      console.log("Tree data received:", data);
-
-      setTreeData(data);
       generateExcel(data);
+      setSuccess(true);
     } catch (err) {
-      console.error("Error in handleSubmit:", err);
-      setError(err.message || "An error occurred while fetching data");
+      console.error("Error:", err);
+      setError(
+        err.message || "An error occurred while processing your request"
+      );
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGenerateExcel = () => {
-    if (treeData) {
-      generateExcel(treeData);
     }
   };
 
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6">FamilySearch Tree Viewer</h1>
-      <a
-        href={AUTH_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-blue-500 hover:text-blue-700 underline mb-4 inline-block"
-      >
-        Authorize Application
-      </a>
-      <form onSubmit={handleSubmit} className="mb-6">
-        <input
-          type="text"
-          value={authCode}
-          onChange={(e) => setAuthCode(e.target.value)}
-          placeholder="Enter authorization code"
-          className="border border-gray-300 rounded px-3 py-2 w-full mb-2"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
-        >
-          {loading ? "Loading..." : "Fetch Tree Data and Generate Excel"}
-        </button>
-        {treeData && (
-          <button
-            onClick={handleGenerateExcel}
-            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded ml-2"
-          >
-            Generate Excel
-          </button>
-        )}
-      </form>
-      {error && <p className="text-red-500 mb-4">{error}</p>}
-      {treeData && (
-        <div>
-          <h2 className="text-2xl font-bold mb-2">Tree Data</h2>
-          <pre className="bg-gray-100 p-4 rounded overflow-x-auto">
-            {JSON.stringify(treeData, null, 2)}
-          </pre>
+      {loading ? (
+        <div className="text-center mt-8">Processing your request...</div>
+      ) : error ? (
+        <div className="text-center mt-8 text-red-500">{error}</div>
+      ) : success ? (
+        <div className="text-center mt-8 text-green-500">
+          Data was downloaded successfully!
         </div>
+      ) : (
+        <a
+          href={AUTH_URL}
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+        >
+          Authorize with FamilySearch
+        </a>
       )}
     </div>
   );
