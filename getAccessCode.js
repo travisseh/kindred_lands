@@ -48,3 +48,5 @@ async function getAccessToken(code) {
     );
   }
 }
+
+module.exports = { getAccessToken };
