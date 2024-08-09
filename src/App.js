@@ -3,7 +3,8 @@ import axios from "axios";
 import { fetchTreeData, generateExcel } from "./getTree";
 
 const CLIENT_ID = "b00VC7JDZH9EBLMP85GU";
-const REDIRECT_URI = "http://localhost:3000";
+// const REDIRECT_URI = "http://localhost:3000";
+const REDIRECT_URI = "https://kindred-lands.vercel.app";
 const BASE_AUTH_URL =
   "https://identbeta.familysearch.org/cis-web/oauth2/v3/authorization";
 const TOKEN_URL = "https://identbeta.familysearch.org/cis-web/oauth2/v3/token";
