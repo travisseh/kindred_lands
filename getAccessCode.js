@@ -3,7 +3,8 @@ const qs = require("querystring");
 const readline = require("readline");
 
 const CLIENT_ID = "b00VC7JDZH9EBLMP85GU";
-const REDIRECT_URI = "http://localhost:3000";
+// const REDIRECT_URI = "http://localhost:3000";
+const REDIRECT_URI = "https://kindred-lands.vercel.app";
 const AUTH_URL = `https://identbeta.familysearch.org/cis-web/oauth2/v3/authorization?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
 const TOKEN_URL = "https://identbeta.familysearch.org/cis-web/oauth2/v3/token";
 
