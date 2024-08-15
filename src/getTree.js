@@ -95,7 +95,7 @@ async function getCurrentPersonId(fs) {
   });
 }
 
-async function getAncestryTree(fs, personId, generations = 2) {
+async function getAncestryTree(fs, personId, generations = 8) {
   return new Promise((resolve, reject) => {
     const url = `/platform/tree/ancestry?person=${personId}&generations=${generations}`;
     fs.get(url, (error, response) => {
