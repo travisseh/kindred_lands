@@ -3,8 +3,8 @@ import axios from "axios";
 import { fetchTreeData, generateExcel } from "./getTree";
 
 const CLIENT_ID = "b00VC7JDZH9EBLMP85GU";
-// const REDIRECT_URI = "http://localhost:3000";
-const REDIRECT_URI = "https://kindred-lands.vercel.app";
+const REDIRECT_URI = "http://localhost:3000";
+// const REDIRECT_URI = "https://kindred-lands.vercel.app";
 const BASE_AUTH_URL =
   "https://identbeta.familysearch.org/cis-web/oauth2/v3/authorization";
 const TOKEN_URL = "https://identbeta.familysearch.org/cis-web/oauth2/v3/token";
@@ -55,6 +55,8 @@ function App() {
   const [success, setSuccess] = useState(false);
   const [accessToken, setAccessToken] = useState(null);
   const [completedSets, setCompletedSets] = useState(0);
+  const [processedCount, setProcessedCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -103,7 +105,13 @@ function App() {
 
   const fetchAndGenerateExcel = async (token) => {
     try {
-      const data = await fetchTreeData(token);
+      setProcessedCount(0); // Reset processed count
+      setTotalCount(0); // Reset total count
+      const { data } = await fetchTreeData(
+        token,
+        setProcessedCount,
+        setTotalCount
+      );
       generateExcel(data);
       setSuccess(true);
       setCompletedSets((prev) => prev + 1);
@@ -198,6 +206,10 @@ function App() {
         <div className="text-center mt-8">
           <Spinner />
           <p className="mt-4">Processing your request...</p>
+          <p className="mt-2">
+            Total people processed: {processedCount} /{" "}
+            {totalCount || "Calculating..."}
+          </p>
         </div>
       ) : error ? (
         <div className="text-center mt-8">

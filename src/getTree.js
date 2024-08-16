@@ -12,22 +12,31 @@ function createFamilySearchClient(accessToken) {
   });
 }
 
-export async function fetchTreeData(accessToken) {
+// Define MAX_GENERATIONS if not already defined
+const MAX_GENERATIONS = 8; // or whatever value you prefer
+
+export async function fetchTreeData(
+  accessToken,
+  setProcessedCount,
+  setTotalCount
+) {
   console.log("Fetching tree data with access token:", accessToken);
   const fs = createFamilySearchClient(accessToken);
 
   try {
     console.log("Getting current person ID...");
-    const personId = await getCurrentPersonId(fs);
-    console.log("Current person ID:", personId);
+    const rootPersonId = await getCurrentPersonId(fs);
+    console.log("Current person ID:", rootPersonId);
 
     console.log("Getting ancestry tree...");
-    const tree = await getAncestryTree(fs, personId);
+    const tree = await getAncestryTree(fs, rootPersonId, MAX_GENERATIONS);
     console.log("Ancestry tree:", tree);
 
-    const excelData = [];
+    const totalPeople = tree.persons.length;
+    console.log("Total people in ancestry tree:", totalPeople);
+    setTotalCount(totalPeople);
 
-    for (const person of tree.persons) {
+    const processPersonAndAncestors = async (person) => {
       try {
         const details = await getPersonDetails(fs, person.id);
         const locations = extractLocations(details.persons[0]);
@@ -44,12 +53,14 @@ export async function fetchTreeData(accessToken) {
           "FamilySearch URL": getPersonUrl(person.id),
         };
 
+        const personExcelData = [];
+
         if (locations.length === 0) {
           personData["Location Type"] = "No locations found";
           personData["Location"] = "";
           personData["Country"] = "";
           personData["Date"] = "";
-          excelData.push(personData);
+          personExcelData.push(personData);
         } else {
           locations.forEach((loc, index) => {
             if (index === 0) {
@@ -57,9 +68,9 @@ export async function fetchTreeData(accessToken) {
               personData["Location"] = loc.place;
               personData["Country"] = loc.country;
               personData["Date"] = loc.date;
-              excelData.push(personData);
+              personExcelData.push(personData);
             } else {
-              excelData.push({
+              personExcelData.push({
                 "Location Type": loc.type,
                 Location: loc.place,
                 Country: loc.country,
@@ -68,12 +79,21 @@ export async function fetchTreeData(accessToken) {
             }
           });
         }
+
+        setProcessedCount((prev) => prev + 1);
+        return personExcelData;
       } catch (error) {
         console.error(`Error processing person ${person.id}:`, error.message);
+        setProcessedCount((prev) => prev + 1);
+        return [];
       }
-    }
+    };
 
-    return excelData;
+    const excelDataPromises = tree.persons.map(processPersonAndAncestors);
+    const excelDataArrays = await Promise.all(excelDataPromises);
+    const excelData = excelDataArrays.flat();
+
+    return { data: excelData, totalPeople };
   } catch (error) {
     console.error("Error in fetchTreeData:", error);
     throw error;
@@ -95,7 +115,7 @@ async function getCurrentPersonId(fs) {
   });
 }
 
-async function getAncestryTree(fs, personId, generations = 8) {
+async function getAncestryTree(fs, personId, generations = MAX_GENERATIONS) {
   return new Promise((resolve, reject) => {
     const url = `/platform/tree/ancestry?person=${personId}&generations=${generations}`;
     fs.get(url, (error, response) => {
@@ -127,20 +147,23 @@ async function getPersonDetails(fs, personId) {
 async function getMemoryCount(fs, personId) {
   return new Promise((resolve, reject) => {
     fs.get(`/platform/tree/persons/${personId}/memories`, (error, response) => {
+      console.log(`Memory response for person ${personId}:`, response);
       if (error) {
         console.error("Error fetching memory count:", error);
         resolve({ count: "N/A", links: [] });
       } else {
         console.log("Memory count response:", response);
-        const memoryCount = response.sourceDescriptions
-          ? response.sourceDescriptions.length
-          : 0;
-        const memoryLinks = response.sourceDescriptions
-          ? response.sourceDescriptions.map(
-              (memory) =>
-                `https://www.familysearch.org/photos/artifacts/${memory.id}`
-            )
-          : [];
+        const memoryCount =
+          response.data && response.data.sourceDescriptions
+            ? response.data.sourceDescriptions.length
+            : 0;
+        const memoryLinks =
+          response.data && response.data.sourceDescriptions
+            ? response.data.sourceDescriptions.map(
+                (memory) =>
+                  `https://www.familysearch.org/photos/artifacts/${memory.id}`
+              )
+            : [];
         resolve({ count: memoryCount, links: memoryLinks });
       }
     });
@@ -240,19 +263,24 @@ function extractLocations(person) {
 }
 
 function getRelationship(ascendancyNumber) {
-  if (ascendancyNumber === "1") return "Self";
-  if (ascendancyNumber === "2") return "Father";
-  if (ascendancyNumber === "3") return "Mother";
-
-  const generation = Math.floor(Math.log2(parseInt(ascendancyNumber)));
-  const isMaternal = parseInt(ascendancyNumber) % 2 === 1;
-  const side = isMaternal ? "Maternal" : "Paternal";
-
-  if (generation === 2) return `${side} Grandparent`;
-  if (generation === 3) return `${side} Great-Grandparent`;
-  if (generation > 3) return `${side} ${generation - 2}x Great-Grandparent`;
-
-  return "Unknown";
+  switch (ascendancyNumber) {
+    case "1":
+      return "Self";
+    case "2":
+      return "Father";
+    case "3":
+      return "Mother";
+    case "4":
+      return "Paternal Grandfather";
+    case "5":
+      return "Paternal Grandmother";
+    case "6":
+      return "Maternal Grandfather";
+    case "7":
+      return "Maternal Grandmother";
+    default:
+      return "Unknown";
+  }
 }
 
 function getPersonUrl(personId) {
@@ -268,4 +296,19 @@ export function generateExcel(data) {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8",
   });
   saveAs(dataBlob, "ancestry_tree.xlsx");
+}
+
+async function fetchParents(fs, personId) {
+  return new Promise((resolve, reject) => {
+    fs.get(`/platform/tree/persons/${personId}/parents`, (error, response) => {
+      if (error) {
+        console.error("Error fetching parents:", error);
+        resolve([]); // Return an empty array if there's an error
+      } else {
+        const parents =
+          response.data && response.data.persons ? response.data.persons : [];
+        resolve(parents);
+      }
+    });
+  });
 }
