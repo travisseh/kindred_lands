@@ -3,7 +3,7 @@ import FamilySearch from "fs-js-lite";
 export function createFamilySearchClient(accessToken) {
   console.log("Creating FamilySearch client with access token:", accessToken);
   return new FamilySearch({
-    clientId: "b00VC7JDZH9EBLMP85GU",
+    clientId: process.env.REACT_APP_CLIENT_ID,
     accessToken: accessToken,
     environment: "beta",
     saveAccessToken: false,

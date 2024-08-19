@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { fetchTreeData, generateExcel } from "./getTree";
+import { fetchTreeData } from "./treeDataFetcher";
+import { generateExcel } from "./excelGenerator";
 
-const CLIENT_ID = "b00VC7JDZH9EBLMP85GU";
-const REDIRECT_URI = "http://localhost:3000";
-// const REDIRECT_URI = "https://kindred-lands.vercel.app";
-const BASE_AUTH_URL =
-  "https://identbeta.familysearch.org/cis-web/oauth2/v3/authorization";
-const TOKEN_URL = "https://identbeta.familysearch.org/cis-web/oauth2/v3/token";
-const LOGOUT_URL = "https://apibeta.familysearch.org/platform/logout";
+const CLIENT_ID = process.env.REACT_APP_CLIENT_ID;
+const REDIRECT_URI = process.env.REACT_APP_REDIRECT_URI;
+const BASE_AUTH_URL = process.env.REACT_APP_BASE_AUTH_URL;
+const TOKEN_URL = process.env.REACT_APP_TOKEN_URL;
+const LOGOUT_URL = process.env.REACT_APP_LOGOUT_URL;
 
 function getAuthUrl() {
   const uniqueId =
